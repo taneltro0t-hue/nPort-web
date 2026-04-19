@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="slides-format" content="viewport">
+<title>Машина Захвата Лидов — Н-Порт × БСГЛ</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@100;200;300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#FAFAFA;
+  --bg-soft:#F2F2F2;
+  --bg-card:#FFFFFF;
+  --ink:#0A0A0A;
+  --ink-2:#2A2A2A;
+  --ink-3:#767676;
+  --ink-4:#BDBDBD;
+  --hairline:rgba(0,0,0,0.1);
+  --hairline-strong:rgba(0,0,0,0.22);
+  --accent:#E82127;
+  --accent-dim:rgba(232,33,39,0.35);
+  --accent-soft:rgba(232,33,39,0.06);
+  --font-display:'Sora',-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:var(--font-display);height:100vh;width:100vw;overflow:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{font-weight:300;letter-spacing:-0.005em}
+
+/* ---------- DECK ---------- */
+.deck{position:relative;width:100vw;height:100vh}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  background:var(--bg);
+  opacity:0;pointer-events:none;
+  transition:opacity 0.6s cubic-bezier(0.4,0,0.2,1);
+  overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:all}
+
+/* Very subtle grain */
+.slide::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:50;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity:0.04;mix-blend-mode:multiply;
+}
+/* Corner vignette — very soft for light mode */
+.slide::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:49;
+  background:radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.04) 100%);
+}
+
+/* Side red tick — subtle brand element */
+.side-tick{
+  position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:48px;background:var(--accent);
+  z-index:40;box-shadow:0 0 16px var(--accent-dim);
+}
+
+/* ---------- CHROME ---------- */
+.chrome-top{
+  position:absolute;top:0;left:0;right:0;
+  padding:28px clamp(32px,5vw,72px) 20px;
+  display:flex;justify-content:space-between;align-items:center;
+  z-index:40;
+}
+.chrome-bottom{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:20px clamp(32px,5vw,72px) 28px;
+  display:flex;justify-content:space-between;align-items:center;
+  z-index:40;
+}
+.brand{
+  font-family:var(--font-mono);font-size:10px;
+  letter-spacing:0.22em;text-transform:uppercase;
+  color:var(--ink-2);font-weight:500;
+}
+.brand-dot{display:inline-block;width:6px;height:6px;background:var(--accent);margin-right:10px;vertical-align:1px;border-radius:50%;box-shadow:0 0 10px var(--accent-dim)}
+.doc-meta{font-family:var(--font-mono);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink-3);font-weight:400}
+
+/* Frame */
+.frame{
+  position:absolute;
+  left:clamp(32px,5vw,72px);right:clamp(32px,5vw,72px);
+  top:68px;bottom:64px;
+  border-top:1px solid var(--hairline);
+  border-bottom:1px solid var(--hairline);
+  pointer-events:none;z-index:5;
+}
+
+/* Stage */
+.stage{
+  position:absolute;
+  left:clamp(32px,5vw,72px);right:clamp(32px,5vw,72px);
+  top:84px;bottom:80px;
+  display:flex;flex-direction:column;
+  z-index:10;
+}
+
+/* Kicker */
+.kicker{
+  display:inline-flex;align-items:center;gap:14px;
+  font-family:var(--font-mono);font-size:10px;
+  letter-spacing:0.24em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:400;
+}
+.kicker-num{color:var(--ink);font-weight:500}
+.kicker-bar{width:32px;height:1px;background:var(--hairline-strong)}
+.kicker .accent{color:var(--accent)}
+
+/* Headlines */
+.h-display{
+  font-family:var(--font-display);font-weight:200;
+  font-size:clamp(3rem,7.2vw,7.5rem);line-height:0.95;
+  letter-spacing:-0.035em;color:var(--ink);
+}
+.h-display .thin{font-weight:100;color:var(--ink-3)}
+.h-display .accent{color:var(--accent)}
+
+.h-xl{
+  font-family:var(--font-display);font-weight:200;
+  font-size:clamp(2.2rem,5vw,4.5rem);line-height:1.02;
+  letter-spacing:-0.028em;color:var(--ink);
+}
+.h-lg{
+  font-family:var(--font-display);font-weight:300;
+  font-size:clamp(1.6rem,3.4vw,3rem);line-height:1.05;
+  letter-spacing:-0.025em;color:var(--ink);
+}
+.h-md{
+  font-family:var(--font-display);font-weight:400;
+  font-size:clamp(1rem,1.4vw,1.25rem);line-height:1.3;
+  letter-spacing:-0.01em;color:var(--ink);
+}
+
+/* Body */
+.body-lg{font-size:clamp(0.95rem,1.3vw,1.1rem);line-height:1.55;color:var(--ink-2);font-weight:300;max-width:60ch}
+.body{font-size:clamp(0.8rem,1vw,0.92rem);line-height:1.6;color:var(--ink-2);font-weight:300;max-width:56ch}
+.body-sm{font-size:0.78rem;line-height:1.55;color:var(--ink-3);font-weight:300}
+.mono{font-family:var(--font-mono);font-weight:400;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-3)}
+
+/* Stats */
+.stat-xl{
+  font-family:var(--font-display);font-weight:100;
+  font-size:clamp(4rem,11vw,10rem);line-height:0.85;
+  letter-spacing:-0.055em;color:var(--ink);
+}
+
+/* KV row */
+.kv{
+  display:grid;grid-template-columns:40px 1fr auto;gap:24px;align-items:baseline;
+  padding:22px 0;
+  border-top:1px solid var(--hairline);
+}
+.kv:last-child{border-bottom:1px solid var(--hairline)}
+.kv-num{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);letter-spacing:0.1em}
+.kv-title{font-size:clamp(0.95rem,1.3vw,1.1rem);font-weight:400;color:var(--ink);letter-spacing:-0.01em;margin-bottom:6px}
+.kv-desc{font-size:0.82rem;color:var(--ink-3);line-height:1.5;font-weight:300}
+.kv-side{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);letter-spacing:0.15em;text-transform:uppercase}
+
+/* Hairline grid card */
+.prod-card{
+  padding:28px 24px;
+  display:flex;flex-direction:column;gap:14px;
+  min-height:160px;
+  transition:background 0.3s ease;
+}
+.prod-card:hover{background:rgba(0,0,0,0.02)}
+.prod-card .prod-num{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);letter-spacing:0.1em}
+.prod-card .prod-name{font-size:clamp(1rem,1.4vw,1.25rem);font-weight:400;letter-spacing:-0.015em;color:var(--ink);line-height:1.2}
+.prod-card .prod-desc{font-size:0.8rem;color:var(--ink-3);line-height:1.5;font-weight:300}
+.prod-card .prod-tag{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);letter-spacing:0.15em;text-transform:uppercase}
+
+/* Grids */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:clamp(40px,6vw,96px)}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(24px,3vw,48px)}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-left:1px solid var(--hairline);border-right:1px solid var(--hairline)}
+.grid-4 > .prod-card{border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);padding:24px 20px}
+.grid-4 > .prod-card:not(:nth-child(4n)){border-right:1px solid var(--hairline)}
+.grid-6{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-left:1px solid var(--hairline);border-right:1px solid var(--hairline)}
+.grid-6 > .prod-card{border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);padding:28px 24px}
+.grid-6 > .prod-card:not(:nth-child(3n)){border-right:1px solid var(--hairline)}
+.grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-left:1px solid var(--hairline);border-right:1px solid var(--hairline)}
+.grid-5 > .prod-card{border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);padding:24px 18px;min-height:200px}
+.grid-5 > .prod-card:not(:nth-child(5n)){border-right:1px solid var(--hairline)}
+
+/* Center utilities */
+.center-y{flex:1;display:flex;flex-direction:column;justify-content:center}
+.center-y-start{flex:1;display:flex;flex-direction:column;justify-content:flex-start;padding-top:2vh}
+
+/* Reveal */
+.reveal{opacity:0;transform:translateY(18px)}
+
+/* Accents */
+.red-line{width:48px;height:2px;background:var(--accent);box-shadow:0 0 12px var(--accent-dim)}
+.red-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent-dim)}
+.hr-thin{width:100%;height:1px;background:var(--hairline);border:none}
+
+/* Navigation */
+.nav{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  z-index:100;display:flex;align-items:center;gap:20px;
+  padding:10px 20px;
+  background:rgba(250,250,250,0.85);
+  backdrop-filter:blur(20px);
+  border:1px solid var(--hairline);
+  border-radius:2px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.04);
+}
+.nav-btn{background:transparent;border:none;color:var(--ink);font-family:var(--font-display);font-size:16px;cursor:pointer;padding:4px 8px;transition:color 0.2s ease;font-weight:300}
+.nav-btn:hover{color:var(--accent)}
+.nav-dots{display:flex;gap:5px}
+.nav-dot{width:4px;height:4px;background:var(--ink-4);border-radius:0;cursor:pointer;transition:all 0.3s ease}
+.nav-dot.active{background:var(--accent);width:20px;box-shadow:0 0 6px var(--accent-dim)}
+.nav-counter{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);letter-spacing:0.1em;min-width:48px;text-align:center}
+
+/* Phase card */
+.phase{
+  padding:32px 28px;
+  border-left:1px solid var(--hairline);
+  display:flex;flex-direction:column;gap:16px;position:relative;
+}
+.phase:first-child{border-left:none;padding-left:0}
+.phase-num{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);letter-spacing:0.2em;text-transform:uppercase}
+.phase-title{font-size:clamp(1.2rem,2vw,1.75rem);font-weight:300;letter-spacing:-0.02em;line-height:1.1;color:var(--ink)}
+.phase-list{list-style:none;padding:0;margin:12px 0;display:flex;flex-direction:column;gap:10px}
+.phase-list li{font-size:0.82rem;color:var(--ink-2);font-weight:300;padding-left:16px;position:relative;line-height:1.5}
+.phase-list li::before{content:'';position:absolute;left:0;top:0.7em;width:8px;height:1px;background:var(--ink-3)}
+.phase-outcome{margin-top:auto;padding-top:16px;border-top:1px solid var(--hairline);font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent)}
+
+/* Funnel step (horizontal) */
+.funnel{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
+.funnel-step{
+  padding:28px 20px;position:relative;
+  display:flex;flex-direction:column;gap:10px;
+}
+.funnel-step:not(:last-child){border-right:1px solid var(--hairline)}
+.funnel-step .f-num{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);letter-spacing:0.15em}
+.funnel-step .f-title{font-size:1rem;font-weight:400;color:var(--ink);letter-spacing:-0.01em}
+.funnel-step .f-desc{font-size:0.75rem;color:var(--ink-3);line-height:1.5}
+.funnel-step .f-arrow{position:absolute;right:-6px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--ink-4);background:var(--bg);padding:0 3px;font-family:var(--font-mono)}
+.funnel-step:last-child .f-arrow{display:none}
+
+/* Invention card */
+.invention{
+  padding:28px 24px;
+  display:flex;flex-direction:column;gap:14px;
+  min-height:260px;
+  transition:background 0.3s ease;
+}
+.invention:hover{background:rgba(232,33,39,0.015)}
+.invention .inv-code{font-family:var(--font-mono);font-size:10px;color:var(--accent);letter-spacing:0.18em;text-transform:uppercase}
+.invention .inv-title{font-size:1.05rem;font-weight:400;letter-spacing:-0.01em;color:var(--ink);line-height:1.2}
+.invention .inv-desc{font-size:0.78rem;color:var(--ink-3);line-height:1.55;font-weight:300;margin-top:auto}
+
+/* Floor fade */
+.floor-red{
+  position:absolute;left:0;right:0;bottom:0;height:30%;
+  background:radial-gradient(ellipse 50% 100% at 50% 100%, rgba(232,33,39,0.05) 0%, transparent 70%);
+  pointer-events:none;z-index:1;
+}
+.floor-gradient{
+  position:absolute;left:0;right:0;bottom:0;height:40%;
+  background:radial-gradient(ellipse 60% 100% at 50% 100%, rgba(0,0,0,0.03) 0%, transparent 70%);
+  pointer-events:none;z-index:1;
+}
+
+/* Scanline */
+@keyframes scanline{0%{transform:translateY(-100%)}100%{transform:translateY(2000%)}}
+.scanline{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent-dim),transparent);opacity:0.4;animation:scanline 6s linear infinite;pointer-events:none;z-index:3}
+
+/* Blinking caret */
+@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+.caret{display:inline-block;width:2px;height:0.85em;background:var(--accent);margin-left:4px;vertical-align:-2px;animation:blink 1s step-end infinite}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important;transition-duration:0.2s !important}
+}
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+<!-- ============================================ -->
+<!-- SLIDE 1 — TITLE                              -->
+<!-- ============================================ -->
+<div class="slide active" data-slide="1">
+  <div class="side-tick"></div>
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ &nbsp;·&nbsp; SEO-СТРАТЕГИЯ 2026</div>
+    <div class="doc-meta">Конфиденциально</div>
+  </div>
+  <div class="frame"></div>
+  <div class="floor-red"></div>
+  <div class="scanline"></div>
+
+  <div class="stage">
+    <div class="center-y" style="align-items:flex-start;">
+      <div class="reveal" style="margin-bottom:40px;">
+        <div class="kicker"><span class="kicker-bar"></span><span>Маркетинговая система &nbsp;/&nbsp; Q1</span><span class="kicker-num">2026</span></div>
+      </div>
+
+      <h1 class="h-display reveal" style="margin-bottom:8px;">
+        <span class="thin">Машина</span><br>
+        Захвата Лидов<span class="caret"></span>
+      </h1>
+
+      <div class="reveal" style="margin:48px 0 28px;"><div class="red-line"></div></div>
+
+      <p class="body-lg reveal" style="max-width:58ch;">
+        SEO-экосистема для Н-Порт и БСГЛ. Сайт как операционная платформа: захватывает горячий спрос, прогревает холодный, превращает экспертизу в&nbsp;доверие.
+      </p>
+    </div>
+
+    <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:48px;border-top:1px solid var(--hairline);padding-top:28px;">
+      <div>
+        <div class="mono" style="margin-bottom:8px;">Кластеров</div>
+        <div class="h-md">5 денежных</div>
+      </div>
+      <div>
+        <div class="mono" style="margin-bottom:8px;">Страниц</div>
+        <div class="h-md">100+ SEO</div>
+      </div>
+      <div>
+        <div class="mono" style="margin-bottom:8px;">Направлений</div>
+        <div class="h-md">12 каналов</div>
+      </div>
+      <div>
+        <div class="mono" style="margin-bottom:8px;">Горизонт</div>
+        <div class="h-md">180 дней</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">BSGL.PRO &nbsp;·&nbsp; NPORT.PRO</div>
+    <div class="mono">01 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 2 — САЙТ = ОПЕРАЦИОННАЯ ПЛАТФОРМА      -->
+<!-- ============================================ -->
+<div class="slide" data-slide="2">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Главный тезис</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:40px;">
+      <div class="kicker"><span class="kicker-num">01</span><span class="kicker-bar"></span><span>Сайт — главный актив</span></div>
+    </div>
+
+    <div class="center-y">
+      <h2 class="h-xl reveal" style="margin-bottom:64px;">
+        Не визитка.<br>
+        <span style="color:var(--ink-3);font-weight:100;">Операционная</span> <span class="accent" style="color:var(--accent);">маркетинговая платформа.</span>
+      </h2>
+
+      <div class="grid-3 reveal" style="gap:0;border-left:1px solid var(--hairline);border-right:1px solid var(--hairline);border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);">
+        <div class="prod-card" style="border-right:1px solid var(--hairline);min-height:220px;">
+          <div class="prod-num">Слой 01</div>
+          <div class="prod-name">Доверие</div>
+          <div style="color:var(--ink-3);font-size:0.82rem;line-height:1.55;margin-top:auto;">Кейсы, лица команды, реальные процессы, сертификаты, терминалы, видео — доказательства компетентности.</div>
+        </div>
+        <div class="prod-card" style="border-right:1px solid var(--hairline);min-height:220px;">
+          <div class="prod-num">Слой 02</div>
+          <div class="prod-name">Спрос</div>
+          <div style="color:var(--ink-3);font-size:0.82rem;line-height:1.55;margin-top:auto;">SEO-матрица услуг, маршрутов и проблем. Блог как отраслевая редакция, а не новостная лента.</div>
+        </div>
+        <div class="prod-card" style="min-height:220px;">
+          <div class="prod-num">Слой 03</div>
+          <div class="prod-name">Конверсия</div>
+          <div style="color:var(--ink-3);font-size:0.82rem;line-height:1.55;margin-top:auto;">Калькуляторы, формы быстрого КП, трекинг, чат-бот, лид-магниты. Разные точки входа под зрелость клиента.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Главный тезис</div>
+    <div class="mono">02 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 3 — ПРОБЛЕМА                           -->
+<!-- ============================================ -->
+<div class="slide" data-slide="3">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Что теряется сегодня</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:40px;">
+      <div class="kicker"><span class="kicker-num">02</span><span class="kicker-bar"></span><span>Проблема</span></div>
+    </div>
+
+    <div class="center-y">
+      <h2 class="h-xl reveal" style="margin-bottom:56px;max-width:24ch;">
+        Операционные преимущества есть.<br>
+        <span style="color:var(--accent);">Маркетинг их не продаёт.</span>
+      </h2>
+
+      <div class="reveal">
+        <div class="kv">
+          <div class="kv-num">01</div>
+          <div>
+            <div class="kv-title">Сайт не работает на поиск</div>
+            <div class="kv-desc">Нет денежных кластеров, нет страниц по маршрутам и типам грузов. Клиент, который уже готов покупать, не находит Н-Порт в выдаче.</div>
+          </div>
+          <div class="kv-side">SEO 0 → 100+ стр</div>
+        </div>
+        <div class="kv">
+          <div class="kv-num">02</div>
+          <div>
+            <div class="kv-title">Нет точек захвата под зрелость лида</div>
+            <div class="kv-desc">Только форма «оставьте заявку». Горячий, тёплый, холодный клиенты требуют разных офферов: ставка, аудит, чек-лист, контент.</div>
+          </div>
+          <div class="kv-side">1 форма → 6 входов</div>
+        </div>
+        <div class="kv">
+          <div class="kv-num">03</div>
+          <div>
+            <div class="kv-title">Экспертность не упакована в актив</div>
+            <div class="kv-desc">20 лет работы с портом и таможней, уникальная связка reefer + приоритет + склад — всё это не становится контентом, индексом, медиа и брендом.</div>
+          </div>
+          <div class="kv-side">Опыт → Авторитет</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Проблема</div>
+    <div class="mono">03 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 4 — 5 ДЕНЕЖНЫХ КЛАСТЕРОВ               -->
+<!-- ============================================ -->
+<div class="slide" data-slide="4">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Архитектура сайта</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">03</span><span class="kicker-bar"></span><span>Денежные кластеры</span></div>
+    </div>
+
+    <div class="grid-2 reveal" style="align-items:end;margin-bottom:48px;">
+      <h2 class="h-xl">
+        Не «о компании / услуги».<br>
+        <span style="color:var(--ink-3);font-weight:100;">Архитектура вокруг</span> денег.
+      </h2>
+      <p class="body" style="margin-bottom:8px;">
+        Пять кластеров, каждый из которых — отдельная продуктовая вселенная с собственными посадочными, лид-магнитами и воронкой.
+      </p>
+    </div>
+
+    <div class="grid-5 reveal">
+      <div class="prod-card">
+        <div class="prod-num">01</div>
+        <div>
+          <div class="prod-name">Reefer</div>
+          <div class="prod-tag" style="margin-top:4px;">Скоропорт</div>
+        </div>
+        <div class="prod-desc" style="margin-top:auto;">Рефрижераторные перевозки, cold chain, контроль температуры, страхование порчи.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">02</div>
+        <div>
+          <div class="prod-name">Customs</div>
+          <div class="prod-tag" style="margin-top:4px;">Таможня</div>
+        </div>
+        <div class="prod-desc" style="margin-top:auto;">Приоритетное оформление, коды ТН ВЭД, сопровождение импортёра, аудит документов.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">03</div>
+        <div>
+          <div class="prod-name">Port Forwarding</div>
+          <div class="prod-tag" style="margin-top:4px;">Экспедирование</div>
+        </div>
+        <div class="prod-desc" style="margin-top:auto;">Работа внутри порта Новороссийск, перевалка, склады, документальное сопровождение.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">04</div>
+        <div>
+          <div class="prod-name">Sea Container</div>
+          <div class="prod-tag" style="margin-top:4px;">Контейнеры</div>
+        </div>
+        <div class="prod-desc" style="margin-top:auto;">Морские контейнерные перевозки Турция, Индия, Китай, Египет через Чёрное море.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">05</div>
+        <div>
+          <div class="prod-name">Industrial Park</div>
+          <div class="prod-tag" style="margin-top:4px;">Резиденты</div>
+        </div>
+        <div class="prod-desc" style="margin-top:auto;">Производство у порта, готовые модули, логистика для резидентов технопарка Н-Порт.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Архитектура · 5 кластеров</div>
+    <div class="mono">04 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 5 — 5 ТИПОВ СТРАНИЦ                    -->
+<!-- ============================================ -->
+<div class="slide" data-slide="5">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">SEO-матрица</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:40px;">
+      <div class="kicker"><span class="kicker-num">04</span><span class="kicker-bar"></span><span>Пять типов страниц, которые приносят деньги</span></div>
+    </div>
+
+    <div class="center-y">
+      <h2 class="h-xl reveal" style="margin-bottom:48px;">
+        Одна архитектура.<br>
+        <span style="color:var(--ink-3);font-weight:100;">Пять точек</span> захвата.
+      </h2>
+
+      <div class="reveal">
+        <div class="kv">
+          <div class="kv-num">01</div>
+          <div>
+            <div class="kv-title">Страницы услуги с узким оффером</div>
+            <div class="kv-desc">«Рефрижераторные перевозки через Новороссийск» · «Таможенное оформление скоропорта» · «Экспедирование в порту»</div>
+          </div>
+          <div class="kv-side">Commercial</div>
+        </div>
+        <div class="kv">
+          <div class="kv-num">02</div>
+          <div>
+            <div class="kv-title">Страницы маршрутов</div>
+            <div class="kv-desc">«Китай — Новороссийск контейнер» · «Турция — Новороссийск reefer» · «Индия — Новороссийск морские перевозки»</div>
+          </div>
+          <div class="kv-side">Geo</div>
+        </div>
+        <div class="kv">
+          <div class="kv-num">03</div>
+          <div>
+            <div class="kv-title">Страницы проблемы</div>
+            <div class="kv-desc">«Задержка контейнера в порту» · «Как пройти таможню скоропорта» · «Как снизить риск порчи груза»</div>
+          </div>
+          <div class="kv-side">Pain</div>
+        </div>
+        <div class="kv">
+          <div class="kv-num">04</div>
+          <div>
+            <div class="kv-title">Страницы инструментов</div>
+            <div class="kv-desc">Калькулятор фрахта · Аудит ставок · Чек-лист документов · Оценка риска задержки</div>
+          </div>
+          <div class="kv-side">Tools</div>
+        </div>
+        <div class="kv">
+          <div class="kv-num">05</div>
+          <div>
+            <div class="kv-title">Страницы для резидентов технопарка</div>
+            <div class="kv-desc">Аренда и покупка у порта · Готовые производственные модули · Логистика для резидентов</div>
+          </div>
+          <div class="kv-side">N-Port</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Типы страниц</div>
+    <div class="mono">05 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 6 — ВОРОНКА 5 УРОВНЕЙ                  -->
+<!-- ============================================ -->
+<div class="slide" data-slide="6">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Воронка сайта</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">05</span><span class="kicker-bar"></span><span>Продуктовая воронка</span></div>
+    </div>
+
+    <div class="grid-2 reveal" style="align-items:end;margin-bottom:56px;">
+      <h2 class="h-xl">
+        Пять уровней.<br>
+        <span style="color:var(--ink-3);font-weight:100;">От поиска</span> до апселла.
+      </h2>
+      <p class="body" style="margin-bottom:8px;">
+        Не «оставьте заявку». Каждый лид попадает в сценарий под свою зрелость и постепенно движется к сделке и повторной покупке.
+      </p>
+    </div>
+
+    <div class="center-y">
+      <div class="funnel reveal">
+        <div class="funnel-step">
+          <div class="f-num">01</div>
+          <div class="f-title">Захват спроса</div>
+          <div class="f-desc">SEO · контекст · карты маршрутов · статьи</div>
+          <div class="f-arrow">→</div>
+        </div>
+        <div class="funnel-step">
+          <div class="f-num">02</div>
+          <div class="f-title">Конверсия</div>
+          <div class="f-desc">Калькулятор · КП за 2 часа · аудит маршрута</div>
+          <div class="f-arrow">→</div>
+        </div>
+        <div class="funnel-step">
+          <div class="f-num">03</div>
+          <div class="f-title">Дожим</div>
+          <div class="f-desc">Кейсы · видео · ретаргетинг · Telegram</div>
+          <div class="f-arrow">→</div>
+        </div>
+        <div class="funnel-step">
+          <div class="f-num">04</div>
+          <div class="f-title">Апселл</div>
+          <div class="f-desc">Таможня · склад · страхование · технопарк</div>
+          <div class="f-arrow">→</div>
+        </div>
+        <div class="funnel-step">
+          <div class="f-num">05</div>
+          <div class="f-title">Удержание</div>
+          <div class="f-desc">Кабинет · дайджест ставок · AI-бот · реферальная</div>
+        </div>
+      </div>
+
+      <div class="reveal" style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;padding-top:28px;border-top:1px solid var(--hairline);">
+        <div>
+          <div class="mono" style="margin-bottom:6px;color:var(--accent);">Горячий</div>
+          <div class="body-sm" style="color:var(--ink-2);">Оставляет запрос на ставку — менеджер отвечает в&nbsp;течение 2 часов</div>
+        </div>
+        <div>
+          <div class="mono" style="margin-bottom:6px;">Тёплый</div>
+          <div class="body-sm" style="color:var(--ink-2);">Скачивает чек-лист или аудит — попадает в email-цепочку nurturing</div>
+        </div>
+        <div>
+          <div class="mono" style="margin-bottom:6px;">Холодный</div>
+          <div class="body-sm" style="color:var(--ink-2);">Читает кейс или смотрит видео — уходит в Telegram-канал экосистемы</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Воронка · 5 уровней</div>
+    <div class="mono">06 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 7 — 12 НАПРАВЛЕНИЙ                     -->
+<!-- ============================================ -->
+<div class="slide" data-slide="7">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Каналы привлечения</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">06</span><span class="kicker-bar"></span><span>12 направлений</span></div>
+    </div>
+
+    <div class="grid-2 reveal" style="align-items:end;margin-bottom:32px;">
+      <h2 class="h-xl">
+        Двенадцать каналов.<br>
+        <span style="color:var(--ink-3);font-weight:100;">Связанная</span> система.
+      </h2>
+      <p class="body" style="margin-bottom:8px;">
+        В 2026 году выигрывают не те, у кого больше рекламы, а те, у кого связаны бренд, контент, CRM и посадочные.
+      </p>
+    </div>
+
+    <div class="grid-4 reveal">
+      <div class="prod-card">
+        <div class="prod-num">01</div>
+        <div class="prod-name">SEO-платформа</div>
+        <div class="prod-desc" style="margin-top:auto;">Матрица из сотен коммерческих страниц под услуги, грузы, гео, проблемы.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">02</div>
+        <div class="prod-name">Медиа «Черноморский логист»</div>
+        <div class="prod-desc" style="margin-top:auto;">Отраслевая редакция: ставки, маршруты, таможня, обзоры порта.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">03</div>
+        <div class="prod-name">Лид-магниты</div>
+        <div class="prod-desc" style="margin-top:auto;">Чек-листы, аудиты, шаблоны — повод начать диалог без давления.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">04</div>
+        <div class="prod-name">Telegram B2B</div>
+        <div class="prod-desc" style="margin-top:auto;">Отраслевой канал · клуб резидентов · закрытый канал клиентов.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">05</div>
+        <div class="prod-name">LinkedIn + outreach</div>
+        <div class="prod-desc" style="margin-top:auto;">Импортёры, экспортёры, cold chain, food distributors, procurement.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">06</div>
+        <div class="prod-name">Performance</div>
+        <div class="prod-desc" style="margin-top:auto;">Контекст как перехват уже созревшего спроса. Только горячие ключи.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">07</div>
+        <div class="prod-name">ABM</div>
+        <div class="prod-desc" style="margin-top:auto;">Пищевики, фрукты, заморозка, турецкие и индийские трейдеры — 50–100 целевых аккаунтов.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">08</div>
+        <div class="prod-name">Видео-экспертность</div>
+        <div class="prod-desc" style="margin-top:auto;">Разбор маршрута, работа контейнера, день экспедитора, ошибки таможни.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">09</div>
+        <div class="prod-name">Партнёрский</div>
+        <div class="prod-desc" style="margin-top:auto;">ВЭД-консультанты, юристы, ассоциации, банки, страховые, ERP.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">10</div>
+        <div class="prod-name">Инструменты и индексы</div>
+        <div class="prod-desc" style="margin-top:auto;">BSFI, калькулятор, карта маршрутов, термоконтроль, оценка риска.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">11</div>
+        <div class="prod-name">CRM-маркетинг</div>
+        <div class="prod-desc" style="margin-top:auto;">2 часа — ответ · серия материалов · кейс · аудит · встреча.</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">12</div>
+        <div class="prod-name">Intl позиционирование</div>
+        <div class="prod-desc" style="margin-top:auto;">Не «логистика из Новороссийска», а Black Sea gateway expertise.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">12 направлений</div>
+    <div class="mono">07 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 8 — ФЛАГМАНСКИЕ ОФФЕРЫ                 -->
+<!-- ============================================ -->
+<div class="slide" data-slide="8">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Лид-магниты</div>
+  </div>
+  <div class="frame"></div>
+  <div class="floor-gradient"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">07</span><span class="kicker-bar"></span><span>Офферы, которые дают лиды</span></div>
+    </div>
+
+    <div class="grid-2 reveal" style="align-items:end;margin-bottom:48px;">
+      <h2 class="h-xl">
+        Не «оставьте заявку».<br>
+        <span style="color:var(--accent);">Немедленная польза.</span>
+      </h2>
+      <p class="body" style="margin-bottom:8px;">
+        Шесть входов, где клиент получает ценность до того, как отдаёт контакт. Маркетинг выглядит как консалтинг.
+      </p>
+    </div>
+
+    <div class="grid-6 reveal">
+      <div class="prod-card">
+        <div class="prod-num">01</div>
+        <div class="prod-name">Freight Audit</div>
+        <div class="prod-desc">Бесплатный аудит ставки фрахта за 24 часа. Показываем переплату и альтернативы.</div>
+        <div class="prod-tag" style="margin-top:auto;">24h</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">02</div>
+        <div class="prod-name">Route Risk Analysis</div>
+        <div class="prod-desc">Разбор рисков поставки по маршруту: задержки, документы, сезонность.</div>
+        <div class="prod-tag" style="margin-top:auto;">Risk map</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">03</div>
+        <div class="prod-name">Docs Pre-check</div>
+        <div class="prod-desc">Проверка пакета документов перед таможней. Снижение риска простоя.</div>
+        <div class="prod-tag" style="margin-top:auto;">HS · ТН ВЭД</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">04</div>
+        <div class="prod-name">Rate Calculator</div>
+        <div class="prod-desc">Индикативная ставка и срок за 2 минуты. Работает как входная точка в&nbsp;CRM.</div>
+        <div class="prod-tag" style="margin-top:auto;">2 min</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">05</div>
+        <div class="prod-name">Cold Chain Audit</div>
+        <div class="prod-desc">Аудит холодовой цепи для reefer-грузов. Вход в премиум-сегмент скоропорта.</div>
+        <div class="prod-tag" style="margin-top:auto;">−30°C</div>
+      </div>
+      <div class="prod-card">
+        <div class="prod-num">06</div>
+        <div class="prod-name">Module Configurator</div>
+        <div class="prod-desc">Конфигурация промышленного модуля у порта для резидента Н-Порт.</div>
+        <div class="prod-tag" style="margin-top:auto;">3D · N-Port</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Флагманские офферы</div>
+    <div class="mono">08 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 9 — МИНИ-БРЕНДЫ                        -->
+<!-- ============================================ -->
+<div class="slide" data-slide="9">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Топ-сегмент России</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">08</span><span class="kicker-bar"></span><span>Категорийная доминация</span></div>
+    </div>
+
+    <div class="grid-2 reveal" style="align-items:end;margin-bottom:56px;">
+      <h2 class="h-xl">
+        Не масштаб FESCO.<br>
+        <span style="color:var(--ink-3);font-weight:100;">Номер один в</span> четырёх категориях.
+      </h2>
+      <p class="body" style="margin-bottom:8px;">
+        Биться за общий рынок «вся логистика» — заведомый проигрыш. Становимся №1 в нескольких высокомаржинальных нишах и занимаем несколько выдач одновременно.
+      </p>
+    </div>
+
+    <div class="grid-4 reveal">
+      <div class="prod-card" style="min-height:220px;">
+        <div class="prod-num" style="color:var(--accent);">BSGL / 01</div>
+        <div class="prod-name">Reefer Expert</div>
+        <div class="prod-desc" style="margin-top:auto;">Скоропорт через Новороссийск. Cold chain, термоконтроль, премиум-сегмент рыбы, фруктов, заморозки.</div>
+      </div>
+      <div class="prod-card" style="min-height:220px;">
+        <div class="prod-num" style="color:var(--accent);">BSGL / 02</div>
+        <div class="prod-name">Customs Priority</div>
+        <div class="prod-desc" style="margin-top:auto;">Приоритетное таможенное оформление для импортёров. Сокращение срока выпуска.</div>
+      </div>
+      <div class="prod-card" style="min-height:220px;">
+        <div class="prod-num" style="color:var(--accent);">BSGL / 03</div>
+        <div class="prod-name">Port Gateway</div>
+        <div class="prod-desc" style="margin-top:auto;">Интегрированная связка порт + склад + таможня + экспедирование в одних руках.</div>
+      </div>
+      <div class="prod-card" style="min-height:220px;">
+        <div class="prod-num" style="color:var(--accent);">N-Port / 04</div>
+        <div class="prod-name">Industrial Gateway</div>
+        <div class="prod-desc" style="margin-top:auto;">Производство у порта. Резиденты получают инфраструктуру, логистику и таможенную поддержку пакетом.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Мини-бренды / 4 категории</div>
+    <div class="mono">09 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 10 — МЕЖДУНАРОДНЫЙ ВЫХОД               -->
+<!-- ============================================ -->
+<div class="slide" data-slide="10">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Международный сегмент</div>
+  </div>
+  <div class="frame"></div>
+  <div class="floor-red"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">09</span><span class="kicker-bar"></span><span>Black Sea Gateway</span></div>
+    </div>
+
+    <div class="center-y">
+      <div class="grid-2" style="align-items:center;gap:80px;">
+        <div>
+          <h2 class="h-display reveal" style="margin-bottom:32px;font-size:clamp(2.4rem,4.8vw,4.4rem);">
+            <span class="thin">Black Sea</span><br>
+            Gateway<br>
+            Expertise<span style="color:var(--accent);">.</span>
+          </h2>
+          <div class="reveal" style="margin-bottom:24px;"><div class="red-line"></div></div>
+          <p class="body reveal" style="margin-bottom:16px;">
+            Не «русская логистика», а узкая экспертная специализация, понятная иностранному закупщику. Расширяет рынок и делает БСГЛ не локальным игроком, а специализированным оператором.
+          </p>
+          <p class="mono reveal" style="color:var(--accent);">
+            Turkey · India · Egypt · China corridors
+          </p>
+        </div>
+
+        <div>
+          <div class="kv reveal" style="padding:22px 0;">
+            <div class="kv-num">→</div>
+            <div>
+              <div class="kv-title">EN-версия как отдельная система</div>
+              <div class="kv-desc">Не перевод, а самостоятельная продающая структура со своими кейсами</div>
+            </div>
+            <div class="kv-side">EN / RU</div>
+          </div>
+          <div class="kv reveal" style="padding:22px 0;">
+            <div class="kv-num">→</div>
+            <div>
+              <div class="kv-title">Turkey – Russia corridor</div>
+              <div class="kv-desc">Reefer, контейнеры, таможня, cold chain — отдельная посадочная система</div>
+            </div>
+            <div class="kv-side">Priority</div>
+          </div>
+          <div class="kv reveal" style="padding:22px 0;">
+            <div class="kv-num">→</div>
+            <div>
+              <div class="kv-title">India – Russia sea gateway</div>
+              <div class="kv-desc">Морские перевозки, специализация, whitepapers по маршрутам Чёрного моря</div>
+            </div>
+            <div class="kv-side">Growth</div>
+          </div>
+          <div class="kv reveal" style="padding:22px 0;">
+            <div class="kv-num">→</div>
+            <div>
+              <div class="kv-title">LinkedIn + Email + PR</div>
+              <div class="kv-desc">Аутрич по procurement, гостевые публикации в отраслевых логистических медиа</div>
+            </div>
+            <div class="kv-side">Outreach</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Международный выход</div>
+    <div class="mono">10 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 11 — МАРКЕТИНГОВЫЕ ИЗОБРЕТЕНИЯ         -->
+<!-- ============================================ -->
+<div class="slide" data-slide="11">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Несковируемое</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">10</span><span class="kicker-bar"></span><span>Маркетинговые изобретения</span></div>
+    </div>
+
+    <div class="grid-2 reveal" style="align-items:end;margin-bottom:48px;">
+      <h2 class="h-xl">
+        Пять активов,<br>
+        <span style="color:var(--ink-3);font-weight:100;">которые</span> <span style="color:var(--accent);">невозможно скопировать.</span>
+      </h2>
+      <p class="body" style="margin-bottom:8px;">
+        Превращаем реальные операционные преимущества в маркетинговые продукты. Рынок начинает ссылаться на нас — мы становимся источником правды.
+      </p>
+    </div>
+
+    <div class="grid-5 reveal">
+      <div class="invention" style="border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);">
+        <div class="inv-code">01 / Инструмент</div>
+        <div class="inv-title">Black Sea Freight Index</div>
+        <div class="inv-desc">Собственный индекс ставок по Чёрному морю. Когда рынок ссылается на BSFI, БСГЛ — уже не подрядчик, а инфраструктура рынка.</div>
+      </div>
+      <div class="invention" style="border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);">
+        <div class="inv-code">02 / Engine</div>
+        <div class="inv-title">Freight Audit Engine</div>
+        <div class="inv-desc">Вместо формы «оставьте заявку» — аудит маршрута: переплата, риски, слабые места. Маркетинг выглядит как консалтинг.</div>
+      </div>
+      <div class="invention" style="border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);">
+        <div class="inv-code">03 / Редакция</div>
+        <div class="inv-title">Port Media Room</div>
+        <div class="inv-desc">Редакция с дайджестами ставок, новостей порта, таможенных изменений. БСГЛ — медиа-центр отрасли, а не поставщик услуг.</div>
+      </div>
+      <div class="invention" style="border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);">
+        <div class="inv-code">04 / Авторитет</div>
+        <div class="inv-title">Cold Chain Authority</div>
+        <div class="inv-desc">Отдельная медийная и продуктовая оболочка под reefer-экспертизу. Ниша, которую крупные игроки не раскрывают контентно.</div>
+      </div>
+      <div class="invention" style="border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);">
+        <div class="inv-code">05 / Pipeline</div>
+        <div class="inv-title">Resident Pipeline Engine</div>
+        <div class="inv-desc">3D-конфигуратор, клуб резидентов, серия вебинаров и инвест-материалы. Собираем арендаторов до ввода объекта.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">5 несковируемых активов</div>
+    <div class="mono">11 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 12 — 180 ДНЕЙ                          -->
+<!-- ============================================ -->
+<div class="slide" data-slide="12">
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Дорожная карта 180 дней</div>
+  </div>
+  <div class="frame"></div>
+
+  <div class="stage">
+    <div class="reveal" style="margin-bottom:32px;">
+      <div class="kicker"><span class="kicker-num">11</span><span class="kicker-bar"></span><span>Roadmap</span></div>
+    </div>
+
+    <div class="grid-2 reveal" style="align-items:end;margin-bottom:48px;">
+      <h2 class="h-xl">
+        Сто восемьдесят дней<br>
+        <span style="color:var(--ink-3);font-weight:100;">до категорийной</span> доминации.
+      </h2>
+      <p class="body" style="margin-bottom:8px;">
+        Три этапа: каркас — запуск трафика — масштабирование и международный контур. Каждый этап имеет измеримый коммерческий выход.
+      </p>
+    </div>
+
+    <div class="grid-3 reveal" style="gap:0;">
+      <div class="phase">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="red-dot"></div>
+          <div class="phase-num">Этап 01 &nbsp;·&nbsp; 0–45 дней</div>
+        </div>
+        <div class="phase-title">Каркас</div>
+        <ul class="phase-list">
+          <li>Семантическое ядро под деньги</li>
+          <li>5 лидовых кластеров</li>
+          <li>Прототип главной + 10 посадочных</li>
+          <li>CRM, аналитика, call-tracking</li>
+        </ul>
+        <div class="phase-outcome">Инфраструктура готова</div>
+      </div>
+      <div class="phase">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:7px;height:7px;background:var(--ink-3);border-radius:50%;"></div>
+          <div class="phase-num">Этап 02 &nbsp;·&nbsp; 45–90 дней</div>
+        </div>
+        <div class="phase-title">Запуск трафика</div>
+        <ul class="phase-list">
+          <li>Калькулятор и аудит как лид-магнит</li>
+          <li>Старт медиа «Черноморский логист»</li>
+          <li>Контекст по горячим кластерам</li>
+          <li>Telegram + email nurturing</li>
+          <li>Первые кейсы и видео</li>
+        </ul>
+        <div class="phase-outcome" style="color:var(--ink-2);">Первые горячие лиды</div>
+      </div>
+      <div class="phase">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:7px;height:7px;background:var(--ink-3);border-radius:50%;"></div>
+          <div class="phase-num">Этап 03 &nbsp;·&nbsp; 90–180 дней</div>
+        </div>
+        <div class="phase-title">Масштаб</div>
+        <ul class="phase-list">
+          <li>100+ SEO-посадочных</li>
+          <li>Англоязычный контур</li>
+          <li>LinkedIn / email outreach</li>
+          <li>ABM по 50–100 аккаунтам</li>
+          <li>BSFI и quarterly report</li>
+        </ul>
+        <div class="phase-outcome" style="color:var(--ink-2);">Категорийный авторитет</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Дорожная карта</div>
+    <div class="mono">12 / 13</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 13 — FINAL                             -->
+<!-- ============================================ -->
+<div class="slide" data-slide="13">
+  <div class="side-tick"></div>
+  <div class="chrome-top">
+    <div class="brand"><span class="brand-dot"></span>Н-ПОРТ × БСГЛ</div>
+    <div class="doc-meta">Следующий шаг</div>
+  </div>
+  <div class="frame"></div>
+  <div class="floor-red"></div>
+  <div class="scanline"></div>
+
+  <div class="stage">
+    <div class="center-y" style="align-items:flex-start;">
+      <div class="reveal" style="margin-bottom:40px;">
+        <div class="kicker"><span class="kicker-bar"></span><span>Финал</span><span class="kicker-num">13 / 13</span></div>
+      </div>
+
+      <h2 class="h-display reveal" style="margin-bottom:8px;">
+        <span class="thin">Реальные</span><br>
+        преимущества<br>
+        в маркетинг<span style="color:var(--accent);">.</span>
+      </h2>
+
+      <div class="reveal" style="margin:48px 0 28px;"><div class="red-line"></div></div>
+
+      <p class="body-lg reveal" style="max-width:52ch;">
+        Путь в топ-сегмент — не реклама ради рекламы. Это упаковка приоритета в порту, reefer-опыта, таможенной компетенции и технопарка в маркетинговые продукты, за которые рынок платит.
+      </p>
+
+      <div class="reveal" style="margin-top:48px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:48px;border-top:1px solid var(--hairline);padding-top:28px;width:100%;">
+        <div>
+          <div class="mono" style="margin-bottom:8px;">Стартуем с</div>
+          <div class="h-md">Архитектура + 10 посадочных</div>
+        </div>
+        <div>
+          <div class="mono" style="margin-bottom:8px;">Первый результат</div>
+          <div class="h-md">45 дней</div>
+        </div>
+        <div>
+          <div class="mono" style="margin-bottom:8px;">Цель</div>
+          <div class="h-md">Black Sea Logistics Authority</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chrome-bottom">
+    <div class="mono">Н-Порт × БСГЛ</div>
+    <div class="mono">Конфиденциально · 2026</div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- NAVIGATION -->
+<div class="nav">
+  <button class="nav-btn" onclick="changeSlide(-1)">‹</button>
+  <div class="nav-dots" id="dots"></div>
+  <button class="nav-btn" onclick="changeSlide(1)">›</button>
+  <div class="nav-counter" id="counter">01 / 13</div>
+</div>
+
+<script>
+let current = 1;
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+const dotsEl = document.getElementById('dots');
+const counterEl = document.getElementById('counter');
+
+for (let i = 1; i <= total; i++) {
+  const d = document.createElement('div');
+  d.className = 'nav-dot' + (i === 1 ? ' active' : '');
+  d.onclick = () => goTo(i);
+  dotsEl.appendChild(d);
+}
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function animateIn(slide){
+  slide.querySelectorAll('.reveal').forEach((el, i) => {
+    el.style.transition = 'none';
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(18px)';
+    void el.offsetHeight;
+    const delay = i * 0.06;
+    el.style.transition = `opacity 0.6s cubic-bezier(0.2,0.7,0.2,1) ${delay}s, transform 0.6s cubic-bezier(0.2,0.7,0.2,1) ${delay}s`;
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+  });
+}
+
+function goTo(n){
+  if (n < 1 || n > total || n === current) return;
+  const prev = document.querySelector('.slide.active');
+  const next = document.querySelector(`.slide[data-slide="${n}"]`);
+  if (prev) prev.classList.remove('active');
+  if (next){ next.classList.add('active'); animateIn(next); }
+  current = n;
+  document.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('active', i + 1 === current));
+  counterEl.textContent = `${pad(current)} / ${pad(total)}`;
+}
+
+function changeSlide(dir){
+  let n = current + dir;
+  if (n < 1) n = total;
+  if (n > total) n = 1;
+  goTo(n);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); changeSlide(1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); changeSlide(-1); }
+  if (e.key === 'Home') goTo(1);
+  if (e.key === 'End') goTo(total);
+});
+
+let touchX = 0;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const diff = touchX - e.changedTouches[0].clientX;
+  if (Math.abs(diff) > 50) changeSlide(diff > 0 ? 1 : -1);
+});
+
+try { animateIn(document.querySelector('.slide.active')); } catch(e) {}
+</script>
+</body>
+</html>
